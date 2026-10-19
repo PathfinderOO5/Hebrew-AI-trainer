@@ -362,7 +362,7 @@ function pump() {
     if (done) return; done = true; clearTimeout(wd); spLive.delete(u);
     if (gen !== spGen) return;                                   // cancelled meanwhile
     spBusy = false;
-    if (err && err !== 'interrupted' && err !== 'canceled') {
+    if (err && err !== 'interrupted' && err !== 'canceled' && err !== 'not-allowed') {
       if (lang === 'he-IL') showVoiceBanner(err === 'language-unavailable' || err === 'voice-unavailable' || err === 'synthesis-unavailable' ? 'Телефон не умеет говорить на иврите.' : 'Озвучка не сработала (' + err + ').');
     }
     onend && onend(); pump();
@@ -373,7 +373,8 @@ function pump() {
   try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) { fin('exception'); }
 }
 function speakOne(text, lang, onend) {
-  if (!hasTTS || !soundOn || !text.trim()) { onend && onend(); return; }
+  // browsers refuse to speak before the first tap/click: stay silent instead of raising an error
+  if (!hasTTS || !soundOn || !text.trim() || (navigator.userActivation && !navigator.userActivation.hasBeenActive)) { onend && onend(); return; }
   spq.push({ text, lang, onend }); pump();
 }
 function stopSpeech() {

@@ -429,6 +429,69 @@ button.ghost { background:var(--surface); border:1px solid var(--line); box-shad
 .navlink { background:none !important; color:var(--ink) !important; box-shadow:none !important; min-height:40px; padding:8px 14px; border-radius:999px; font-weight:500; font-size:15px; }
 .navlink:hover { background:var(--surface-2) !important; transform:none !important; }
 @media (max-width:1100px) { .tb-nav { display:none; } }
+
+/* ================= taste layer: flat colour, tone steps instead of lines/shadows, square corners ================= */
+:root { --paper:#E4EAF3; --surface:#FFFFFF; --surface-2:#EDF1F8; --surface-3:#DCE4F0; --line:#C9D3E3; --accent-hover:#173F9E; --r-lg:4px; --r-md:4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper:#0A0F1B; --surface:#131A2B; --surface-2:#1A2338; --surface-3:#243050; --line:#33415F; --accent-hover:#A9C3FF; } }
+:root[data-theme="dark"] { --paper:#0A0F1B; --surface:#131A2B; --surface-2:#1A2338; --surface-3:#243050; --line:#33415F; --accent-hover:#A9C3FF; }
+*:not(.opt.correct):not(.lvbtn.on) { box-shadow:none !important; text-shadow:none !important; }
+*:not(.ring) { background-image:none !important; }
+body { background-color:var(--paper) !important; }
+.app { gap:28px; }
+.hero::before, .hero::after, .front::after, .badge, .hero-stats, .topichead .kicker, .cta2 { display:none !important; }
+
+/* shape: square */
+button:not(.micbtn), .topichead, .panel, .toc, .subbtn, .lvbtn, .opt, .witem, .line, .gcard, .prose, .face, .hero, .voicebox, .tabs, .tab, .seg, .seg button, .settings, .search, .flip, .banner, .msg, .chip, .brand-mark, .topicselect, .typebox input, .keybox input, .composer textarea, .vreply, .progress, .progress > div, .note { border-radius:4px !important; }
+
+/* surfaces separated by tone, not by lines */
+.topichead, .panel, .toc { background:var(--surface); border:0 !important; }
+.subbtn, .opt, .witem, .line, .gcard, .prose, .settings, .vreply { background:var(--surface-2); border:0 !important; }
+.subbtn:hover, .opt:hover:not(:disabled), .witem:hover, .gcard:hover { background:var(--surface-3); transform:none; }
+.opt.correct { background:var(--good) !important; } .opt.wrong { background:var(--bad) !important; } .opt.dim { opacity:.45; }
+.line.playing { background:var(--accent-soft); }
+.search { background:var(--surface-2); border:1.5px solid transparent !important; } .search:focus { border-color:var(--accent) !important; }
+.tabs { background:var(--surface-2); border:0; padding:4px; margin:24px 0 0; }
+.tab { border:0 !important; } .tab.active { background:var(--surface); } .tab:hover { background:var(--surface-3); }
+.topbar { background:var(--paper); border:0; backdrop-filter:none; -webkit-backdrop-filter:none; }
+.topbar .chip { background:var(--surface); border:0; }
+button.ghost { background:var(--surface-2); border:0 !important; color:var(--ink); }
+button.ghost:hover { background:var(--surface-3); }
+.toc button.on { background:var(--accent-soft) !important; }
+.sub, .src { color:var(--muted); }
+
+/* flat buttons */
+button:not(.ghost):not(.tab):not(.subbtn):not(.lvbtn):not(.opt):not(.micbtn):not(.sen):not(.navlink):not(.toc button):not(.icon-btn) { background-color:var(--accent); color:var(--accent-ink); transform:none; }
+button:not(.ghost):not(.tab):not(.subbtn):not(.lvbtn):not(.opt):not(.micbtn):not(.sen):not(.navlink):not(.toc button):not(.icon-btn):hover { background-color:var(--accent-hover); transform:none; }
+.seg button.on, .scen button.on, .subbtn.on { background-color:var(--hero) !important; color:var(--hero-ink) !important; }
+.progress > div { background-color:var(--accent); }
+.brand-mark { background-color:var(--hero); color:var(--sun); }
+
+/* hero: one flat field, the Hebrew word is the picture */
+.hero { background-color:#0F2A5C; border-radius:4px !important; min-height:360px; padding:56px 56px; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); }
+.hero h1 { font-size:clamp(34px,5.2vw,68px); line-height:1.02; letter-spacing:-.035em; max-width:none; margin:0 0 20px; }
+.hero .lead { font-size:clamp(17px,1.7vw,21px); color:#D6DEEE; max-width:36ch; }
+.hero .cta-row { margin-top:30px; }
+.hero .cta { background-color:var(--sun) !important; color:#10244F !important; min-height:56px; padding:12px 32px; font-size:18px; border-radius:4px !important; }
+.hero .cta:hover { background-color:#FFD066 !important; }
+.hero .mark { font-size:clamp(110px,17vw,250px); color:var(--sun); justify-self:end; }
+
+/* cards, quiz, teacher: flat */
+.front { background-color:var(--surface-2); border:0; }
+.back { background-color:#0F2A5C; }
+.face { border-radius:4px !important; }
+.voicebox { background-color:var(--surface-2); border:0; }
+.micbtn { background-color:var(--accent); color:var(--accent-ink); }
+.micbtn.listening { background-color:var(--bad); color:#fff; animation:pulseS 1.2s ease-in-out infinite; }
+.micbtn.thinking { background-color:var(--sun); color:#10244F; animation:pulseS 1.6s ease-in-out infinite; }
+.micbtn.speaking { background-color:var(--good); color:#fff; }
+@keyframes pulseS { 0%,100% { transform:scale(1); } 50% { transform:scale(1.07); } }
+.lvbtn { border:0 !important; background-color:var(--cs); }
+.lvbtn.on { background-color:var(--c); color:var(--on); }
+.lvbtn.on, .opt.correct { box-shadow:0 0 22px 2px var(--cg, var(--good-glow)) !important; }
+.msg.t { background:var(--surface-2); border:0; } .msg.u { background:var(--hero); }
+.hide-x { display:none; }
+@media (max-width:900px) { .hero { padding:36px 24px; grid-template-columns:1fr; min-height:0; } .hero .mark { justify-self:start; order:-1; font-size:110px; } }
+@media (max-width:560px) { .hero { padding:28px 20px; } .hero h1 { font-size:34px; } }
 </style>
 
 <div class="app">
@@ -449,14 +512,9 @@ button.ghost { background:var(--surface); border:1px solid var(--line); box-shad
   </header>
   <section class="hero">
     <div class="hero-copy">
-      <span class="badge">Для всех — на доступном языке</span>
-      <h1>Учите иврит просто и спокойно</h1>
-      <p class="lead">Слова, тексты, грамматика и разговор с преподавателем. Всё объяснено по-русски, шаг за шагом: от первых фраз до свободного чтения.</p>
-      <div class="cta-row">
-        <button type="button" class="cta" onclick="goTab('cards')">Начать урок</button>
-        <button type="button" class="cta2" onclick="goTab('teacher')">Поговорить с преподавателем</button>
-      </div>
-      <div class="hero-stats"><div><b>20</b><span>тем</span></div><div><b>60</b><span>подтем</span></div><div><b>180</b><span>уроков</span></div></div>
+      <h1>Иврит просто и спокойно</h1>
+      <p class="lead">Для всех, на доступном языке: слова, тексты, грамматика и разговор с преподавателем, шаг за шагом.</p>
+      <div class="cta-row"><button type="button" class="cta" onclick="goTab('cards')">Начать урок</button></div>
     </div>
     <div class="mark" aria-hidden="true">עִבְרִית</div>
   </section>

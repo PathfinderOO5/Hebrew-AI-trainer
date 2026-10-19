@@ -327,26 +327,66 @@ function findVoice(lang) {
   const p = lang.slice(0, 2).toLowerCase(), alts = p === 'he' ? ['he', 'iw'] : [p];
   return voices.find(v => alts.some(a => v.lang.replace('_', '-').toLowerCase().startsWith(a)));
 }
+const ANDROID = /Android/i.test(navigator.userAgent);
+function voiceHelp() {
+  return ANDROID
+    ? 'Телефон: Настройки → Система → Языки → Синтез речи (Text-to-speech) → «Синтез речи от Google» → ⚙ → Установить голосовые данные → иврит (Израиль). Потом проверьте громкость мультимедиа и перезапустите Chrome.'
+    : 'Windows: Параметры → Время и язык → Язык и регион → добавить «עברית» (иврит) с речевым пакетом, затем перезапустите Chrome или Edge.';
+}
+function showVoiceBanner(msg) {
+  const b = $('voiceBanner'); if (!b) return;
+  b.hidden = false;
+  b.innerHTML = '<b>' + msg + '</b> ' + voiceHelp() + ' <button type="button" class="ghost small" id="vTest" style="margin-top:8px">Проверить голос</button>';
+  const t = $('vTest'); if (t) t.onclick = () => say('שלום, מה שלומך?');
+}
 function loadVoices() {
   if (!hasTTS) return;
   voices = speechSynthesis.getVoices();
   if (!voices.length) return;
   const b = $('voiceBanner');
-  if (!findVoice('he-IL')) {
-    b.hidden = false;
-    b.innerHTML = '<b>Нет голоса для иврита.</b> Слова могут звучать неправильно. Windows: Параметры → Время и язык → Язык и регион → добавить «עברית» (иврит) с речевым пакетом. Лучше всего работают Chrome и Edge.';
-  } else b.hidden = true;
+  if (!findVoice('he-IL')) showVoiceBanner('Не найден голос иврита.');
+  else b.hidden = true;
+}
+// speech queue: one utterance at a time, safe against Android/Chrome quirks
+const spq = []; let spBusy = false, spGen = 0, spHold = 0, spTimer = null; const spLive = new Set();
+function pump() {
+  if (spBusy || !spq.length) return;
+  const wait = spHold - Date.now();
+  if (wait > 0) { clearTimeout(spTimer); spTimer = setTimeout(pump, wait); return; }
+  const { text, lang, onend } = spq.shift(); spBusy = true; const gen = spGen;
+  const u = new SpeechSynthesisUtterance(text); spLive.add(u);   // keep a reference so it is not garbage-collected
+  u.lang = lang; u.rate = lang === 'he-IL' ? rate : Math.min(1.1, rate + 0.15);
+  const v = findVoice(lang); if (v) u.voice = v;
+  let done = false, wd = null;
+  const fin = err => {
+    if (done) return; done = true; clearTimeout(wd); spLive.delete(u);
+    if (gen !== spGen) return;                                   // cancelled meanwhile
+    spBusy = false;
+    if (err && err !== 'interrupted' && err !== 'canceled') {
+      if (lang === 'he-IL') showVoiceBanner(err === 'language-unavailable' || err === 'voice-unavailable' || err === 'synthesis-unavailable' ? 'Телефон не умеет говорить на иврите.' : 'Озвучка не сработала (' + err + ').');
+    }
+    onend && onend(); pump();
+  };
+  u.onend = () => fin(); u.onerror = e => fin(e.error || 'error');
+  u.onstart = () => clearTimeout(wd);
+  wd = setTimeout(() => { try { speechSynthesis.cancel(); } catch (e) {} fin('timeout'); }, 6000);   // engine never started
+  try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch (e) { fin('exception'); }
 }
 function speakOne(text, lang, onend) {
   if (!hasTTS || !soundOn || !text.trim()) { onend && onend(); return; }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang; u.rate = lang === 'he-IL' ? rate : Math.min(1.1, rate + 0.15);
-  const v = findVoice(lang); if (v) u.voice = v;
-  if (onend) { u.onend = onend; u.onerror = onend; }
-  speechSynthesis.speak(u);
+  spq.push({ text, lang, onend }); pump();
 }
-function stopSpeech() { if (hasTTS) try { speechSynthesis.cancel(); } catch (e) {} }
+function stopSpeech() {
+  if (!hasTTS) return;
+  spGen++; spq.length = 0; spBusy = false; spHold = Date.now() + 180;   // Android drops speak() right after cancel()
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
 function say(text, lang = 'he-IL') { stopSpeech(); speakOne(text, lang); }
+// unlock speech on the first tap (mobile browsers require a user gesture)
+document.addEventListener('pointerdown', () => {
+  if (!hasTTS) return;
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+}, { once: true, capture: true });
 // split mixed text into Hebrew / Russian runs; Latin transliteration is skipped
 function segments(text) {
   const out = []; let cur = null, buf = '';
@@ -723,29 +763,46 @@ function micClick() {
   if (chat.vs === 'thinking') return;
   startListening();
 }
-function startListening() {
+function startListening(retry) {
   if (!SR) { setVS('idle', 'В этом браузере нет голосового ввода — откройте в Chrome или Edge, или пишите текстом.'); return; }
   stopSpeech();
-  let finalText = '', failed = false;
+  let finalText = '', lastText = '', failed = false, heard = false; const t0 = Date.now();
   const r = new SR(); chat.rec = r;
-  r.lang = chat.micLang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+  // Android Chrome sometimes only understands the legacy Hebrew code "iw-IL"
+  const alt = store.get('heAlt', false);
+  r.lang = chat.micLang === 'he-IL' ? (retry === 'iw' || (alt && retry !== 'he') ? 'iw-IL' : 'he-IL') : chat.micLang;
+  r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+  r.onaudiostart = () => { heard = true; };
   r.onresult = e => {
-    let interim = ''; finalText = '';
-    for (const res of e.results) { if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript; }
-    const box = $('interim'); if (box) box.textContent = finalText || interim;
+    // Android repeats cumulative results; the last result holds the whole phrase
+    const res = e.results[e.results.length - 1];
+    if (!res) return;
+    const text = (res[0] && res[0].transcript || '').trim();
+    if (text) lastText = text;
+    if (res.isFinal && text) finalText = text;
+    const box = $('interim'); if (box) box.textContent = finalText || lastText;
   };
   r.onerror = e => {
     failed = true;
+    if (e.error === 'language-not-supported' && r.lang === 'he-IL' && retry !== 'iw') { failed = false; r.__again = 'iw'; return; }
     const msg = e.error === 'not-allowed' || e.error === 'service-not-allowed'
       ? 'Микрофон не разрешён. Нажмите на значок замка слева от адреса и разрешите микрофон. Если тренажёр открыт внутри Claude, используйте микрофон на клавиатуре (Android) или Win+H (Windows) — текст появится в поле ниже.'
       : e.error === 'no-speech' ? 'Ничего не слышно. Нажмите на микрофон и говорите чуть громче.'
-      : e.error === 'network' ? 'Для распознавания речи нужен интернет.' : 'Микрофон не сработал. Попробуйте ещё раз.';
+      : e.error === 'language-not-supported' ? 'Телефон не распознаёт иврит голосом. Используйте микрофон на клавиатуре (язык иврит) — текст появится в поле ниже.'
+      : e.error === 'network' ? 'Для распознавания речи нужен интернет.' : 'Микрофон не сработал (' + (e.error || '?') + '). Попробуйте ещё раз.';
     setVS('idle', msg);
   };
   r.onend = () => {
     chat.rec = null; const box = $('interim'); if (box) box.textContent = '';
-    if (finalText.trim()) userTurn(finalText.trim(), true);
-    else if (!failed) setVS('idle', 'Не расслышал. Нажмите на микрофон и скажите ещё раз.');
+    const text = (finalText || lastText).trim();          // take the interim text if the engine never marked it final
+    if (r.__again) { startListening(r.__again); return; }
+    if (text) { if (r.lang === 'iw-IL') store.set('heAlt', true); userTurn(text, true); return; }
+    if (failed) return;
+    // heard the user speak but got nothing in Hebrew: try the other Hebrew code once
+    if (chat.micLang === 'he-IL' && !retry && heard && Date.now() - t0 > 1500) { startListening(r.lang === 'he-IL' ? 'iw' : 'he'); return; }
+    setVS('idle', chat.micLang === 'he-IL'
+      ? 'Иврит не распознан. Говорите чётко и чуть ближе к микрофону. Если не получается, нажмите на микрофон клавиатуры (язык иврит) в поле ниже.'
+      : 'Не расслышал. Нажмите на микрофон и скажите ещё раз.');
   };
   try { r.start(); setVS('listening'); } catch (e) { setVS('idle', 'Микрофон занят. Попробуйте ещё раз.'); }
 }

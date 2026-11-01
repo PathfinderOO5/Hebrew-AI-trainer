@@ -1396,14 +1396,14 @@ let sampleFn = null, sampleReady = false;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const chat = { turns: [], busy: false, ctl: null, micLang: store.get('micLang', 'he-IL'), vs: 'idle', rec: null, disabledAI: false, lastReply: '', msg: '', typebox: false, keybox: false };
 const apiKey = () => store.get('apiKey', '');
-const AI_NAMES = { page: 'Claude (эта страница)', local: 'Ollama на этом компьютере', openrouter: 'OpenRouter', claude: 'Claude API' };
+const AI_NAMES = { page: 'Claude (эта страница)', free: 'Бесплатный ИИ без ключа', local: 'Ollama на этом компьютере', openrouter: 'OpenRouter', claude: 'Claude API' };
 const orKey = () => store.get('orKey', ''), orModel = () => store.get('orModel', '') || 'google/gemma-4-31b-it:free';
 function brain() {
   if (sampleFn && !chat.disabledAI) return 'page';
-  const ready = { local: local.llm, openrouter: !!orKey(), claude: !!apiKey() };
+  const ready = { local: local.llm, openrouter: !!orKey(), claude: !!apiKey(), free: true };
   const pick = store.get('ai', '');
   if (ready[pick]) return pick;
-  return ['local', 'openrouter', 'claude'].find(k => ready[k]) || 'none';
+  return ['local', 'openrouter', 'claude', 'free'].find(k => ready[k]) || 'none';
 }
 function chatStop() {
   stopSpeech();
@@ -1447,11 +1447,12 @@ const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 const STOPI = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>';
 
 function aiSettings(b) {
-  const pick = store.get('ai', '') || (b === 'local' || b === 'openrouter' || b === 'claude' ? b : local.llm ? 'local' : 'openrouter');
+  const pick = store.get('ai', '') || (b === 'local' || b === 'openrouter' || b === 'claude' || b === 'free' ? b : local.llm ? 'local' : 'free');
   const opt = (k, label) => `<button type="button" data-ai="${k}" class="${pick === k ? 'on' : ''}" aria-pressed="${pick === k}">${label}</button>`;
   const save = '<button type="button" class="btn btn-primary" id="saveKey">Сохранить</button>';
   let body;
-  if (pick === 'local') body = local.llm
+  if (pick === 'free') body = `<p class="hint">Ключ и регистрация не нужны: Михаль отвечает через бесплатный общедоступный сервис (Pollinations). Ваши реплики уходят на его сервер, поэтому не называйте личные данные. Иврит у него среднего качества, и сервис иногда перегружен. Для лучшего результата возьмите ключ OpenRouter (тоже бесплатно) или Claude.</p>`;
+  else if (pick === 'local') body = local.llm
     ? `<p class="hint">Бесплатно: модель ${esc(local.model)} работает прямо на этом компьютере через Ollama, ключи не нужны. Михаль говорит нейроголосом.</p>`
     : local.tts ? `<p class="hint">Сервер тренажёра запущен, но ИИ не готов: ${esc(local.error)}. Исправьте и обновите страницу.</p>`
     : '<p class="hint">Работает, когда тренажёр запущен на компьютере через <b>start.bat</b> (Windows) или <b>start.command</b> (Mac) — адрес localhost:8090 — и установлена Ollama. На телефоне выберите OpenRouter.</p>';
@@ -1466,7 +1467,7 @@ function aiSettings(b) {
         ${apiKey() ? '<button type="button" class="btn btn-secondary" id="delKey">Удалить</button>' : ''}</div>`;
   return `<section class="settings keybox">
       <h3>Кто отвечает за Михаль</h3>
-      <div class="seg ai-seg" role="group" aria-label="Кто отвечает за Михаль">${opt('local', 'Этот компьютер · бесплатно')}${opt('openrouter', 'OpenRouter · бесплатно')}${opt('claude', 'Claude · платно')}</div>
+      <div class="seg ai-seg" role="group" aria-label="Кто отвечает за Михаль">${opt('free', 'Без ключа · бесплатно')}${opt('local', 'Этот компьютер · бесплатно')}${opt('openrouter', 'OpenRouter · бесплатно')}${opt('claude', 'Claude · платно')}</div>
       ${body}${b !== 'none' ? '<div style="margin-top:10px"><button type="button" class="btn btn-quiet btn-sm" id="closeAI">Готово</button></div>' : ''}</section>`;
 }
 function renderTeacher(v) {
@@ -1498,7 +1499,7 @@ function renderTeacher(v) {
   v.querySelectorAll('[data-ml]').forEach(btn => btn.onclick = () => { chat.micLang = btn.dataset.ml; store.set('micLang', chat.micLang); render(); });
   $('sendBtn').onclick = () => { const i = $('chatIn'), x = i.value.trim(); if (!x) return; i.value = ''; userTurn(x, false); };
   $('chatIn').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('sendBtn').click(); } };
-  v.querySelectorAll('[data-ai]').forEach(btn => btn.onclick = () => { store.set('ai', btn.dataset.ai); chat.keybox = true; render(); });
+  v.querySelectorAll('[data-ai]').forEach(btn => btn.onclick = () => { const k = btn.dataset.ai; store.set('ai', k); chat.keybox = k === 'free' ? false : k === 'local' ? !local.llm : k === 'openrouter' ? !orKey() : !apiKey(); chat.disabledAI = false; chat.vs = 'idle'; chat.msg = 'Нажмите на микрофон и говорите'; render(); const f = $('orKey') || $('apiKey'); if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); } });
   if ($('saveKey')) $('saveKey').onclick = () => {
     if ($('orKey')) { store.set('orKey', $('orKey').value.trim()); store.set('orModel', $('orModel').value.trim()); }
     if ($('apiKey')) store.set('apiKey', $('apiKey').value.trim());
@@ -1619,6 +1620,10 @@ async function callAI(signal) {
     method: 'POST', signal,
     headers: { 'content-type': 'application/json', 'x-api-key': apiKey(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
     body: JSON.stringify({ model: store.get('model', 'claude-sonnet-5-5'), max_tokens: 300, system: rules(), messages: turns })
+  });
+  else if (b === 'free') resp = await fetch('https://text.pollinations.ai/openai', {
+    method: 'POST', signal, headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model: 'openai', max_tokens: 500, messages: [{ role: 'system', content: rules() }, ...turns] })
   });
   else {
     // Ollama (через server.py) и OpenRouter говорят на одном языке — формат OpenAI
